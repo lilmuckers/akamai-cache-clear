@@ -3,7 +3,7 @@
 
 class AkamaiCacheClear 
 {
-  /**
+	/**
 	 * Akamai cache constants items
 	 */
 	const AKAMAI_CCUAPI_WSDL	= 'https://ccuapi.akamai.com/ccuapi.wsdl';
