@@ -64,7 +64,8 @@ class AkamaiCacheClear
 		//now we request that these are cleared
 		$_akamaiResponse = $this->_clearAkamaiCache($_akamaiDiffs);
 		
-		return true;
+		//return the clear result
+		return $_akamaiResponse;
 	}
 	
 	/**
@@ -75,6 +76,10 @@ class AkamaiCacheClear
 	 */
 	protected function _clearAkamaiCache($arlsToClear)
 	{
+		//check that there are ARLs to clear
+		if(empty($arlsToClear)){
+			return false;
+		}
 		//get the akamai configs
 		$_akamaiConfig = $this->_config['akamai'];
 		
@@ -254,5 +259,11 @@ if(!array_key_exists('old', $_options) || !array_key_exists('new', $_options)){
 } else {
 	$_utility = new AkamaiCacheClear('akamai.ini');
 	$_timer = $_utility->run($_options['old'], $_options['new']);
-	echo "Cache will take an estimated ".$_timer." minutes to be cleared.\n";
+	
+	//output for the user
+	if(!$_timer){
+		echo "Nothing to do\n";
+	} else {
+		echo "Cache will take an estimated ".$_timer." minutes to be cleared.\n";
+	}
 }
