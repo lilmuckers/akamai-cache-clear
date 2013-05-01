@@ -16,6 +16,7 @@ class AkamaiCacheClear
 	 */
 	const GITHUB_COMPARE_URL	= 'https://api.github.com/repos/%s/%s/compare/%s...%s';
 	const GITHUB_OAUTH_PARAM	= '?access_token=%s';
+	const GITHUB_DEF_USER_AGENT	= 'Patricks Akamai Cache Clear Script (now with flavour)';
 	
 	/**
 	 * The configuration cache
@@ -236,6 +237,9 @@ class AkamaiCacheClear
 		//set the url and that we want to get the response 
 		curl_setopt($_ch, CURLOPT_URL, $_url);
 		curl_setopt($_ch, CURLOPT_RETURNTRANSFER, true);
+		
+		//We need to set a user agent to make GitHub happy
+		curl_setopt($ch, CURLOPT_USERAGENT, self::GITHUB_DEF_USER_AGENT);
 		
 		//Githubs SSL certificate causes issues.
 		curl_setopt($_ch, CURLOPT_SSL_VERIFYPEER, false);
