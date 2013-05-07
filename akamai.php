@@ -239,7 +239,7 @@ class AkamaiCacheClear
 		curl_setopt($_ch, CURLOPT_RETURNTRANSFER, true);
 		
 		//We need to set a user agent to make GitHub happy
-		curl_setopt($ch, CURLOPT_USERAGENT, self::GITHUB_DEF_USER_AGENT);
+		curl_setopt($_ch, CURLOPT_USERAGENT, self::GITHUB_DEF_USER_AGENT);
 		
 		//Githubs SSL certificate causes issues.
 		curl_setopt($_ch, CURLOPT_SSL_VERIFYPEER, false);
