@@ -4,12 +4,12 @@
 class AkamaiCacheClear 
 {
 	/**
-	 * Akamai cache constants items
+	 * Akamai cache REST api constants
 	 */
-	const AKAMAI_CCUAPI_WSDL	= 'https://ccuapi.akamai.com/ccuapi.wsdl';
-	const AKAMAI_CCUAPI_NETWORK	= '';
-	const AKAMAI_SUCCESS_CODE	= 100;
-	const AKAMAI_RESERVED_CODE	= 200;
+	const AKAMAI_CCU_REST_ENDPOINT = 'https://api.ccu.akamai.com/ccu/v2/queues/default';
+	const AKAMAI_SUCCESS_CODE      = 201;
+	const AKAMAI_RESERVED_CODE     = 200;
+	
 	
 	/**
 	 * GitHub constants
@@ -33,18 +33,28 @@ class AkamaiCacheClear
 	protected $_configPath;
 	
 	/**
+	 * Debug flag for the curl requests
+	 * 
+	 * @var bool
+	 */
+	protected $_debug = false;
+	
+	/**
 	 * Constructor loads the configuration path
 	 * 
 	 * @param string $configFilename
 	 * @return void
 	 */
-	public function __construct($configFilename)
+	public function __construct($configFilename, $debug = false)
 	{
 		//check the file exists and then load it
 		if(!file_exists($configFilename)){
 			throw new Exception('Invalid config filename specified');
 		}
 		$this->_config = parse_ini_file($configFilename, true);
+		
+		//set the debug flag
+		$this->_debug = $debug;
 	}
 	
 	/**
@@ -81,29 +91,29 @@ class AkamaiCacheClear
 		if(empty($arlsToClear)){
 			return false;
 		}
+		
 		//get the akamai configs
 		$_akamaiConfig = $this->_config['akamai'];
 		
-		//start the soap client
-		$_client = new SoapClient(self::AKAMAI_CCUAPI_WSDL);
-		
-		//build the options
-		$_options = array();
-		foreach($_akamaiConfig['options'] as $_key => $_var){
-			$_options[] = $_key.'='.$_var;
-		}
-		
-		//run the request
-		$_ccuResponse = $_client->purgeRequest(
-			$_akamaiConfig['username'], 
-			$_akamaiConfig['password'], 
-			self::AKAMAI_CCUAPI_NETWORK,
-			$_options,
-			$arlsToClear
+		//the curl options
+		$_curlOpts = array(
+			CURLOPT_USERPWD => $_akamaiConfig['username'] . ":" . $_akamaiConfig['password']
 		);
 		
-		//process the response
-		return $this->_processAkamaiResponse($_ccuResponse);
+		//the content-type header
+		$_headers = array("Content-Type:application/json");
+		
+		//set up the values to send to akamai
+		$_options = $_akamaiConfig['options'];
+		$_options['objects'] = $arlsToClear;
+		
+		//perform the request
+		$_ccuResponse = $this->_curlRequest(self::AKAMAI_CCU_REST_ENDPOINT, $_options, $_headers, $_curlOpts);
+		
+		//decode the response
+		$_response = json_decode($_ccuResponse);
+		
+		return $this->_processAkamaiResponse($_response);
 	}
 	
 	/**
@@ -115,15 +125,15 @@ class AkamaiCacheClear
 	protected function _processAkamaiResponse($response)
 	{
 		//process the response code
-		switch($response->resultCode)
+		switch($response->httpStatus)
 		{
 			case self::AKAMAI_SUCCESS_CODE:
 			case self::AKAMAI_RESERVED_CODE:
 				//it worked just fine!
-				return $response->estTime/60;
+				return $response->estimatedSeconds/60;
 				break;
 			default:
-				throw new Exception('Akamai Cache Clear error: '.$response->resultMsg);
+				throw new Exception('Akamai Cache Clear error: '.$response->detail);
 				break;
 		}
 	}
@@ -231,11 +241,26 @@ class AkamaiCacheClear
 		$_url = sprintf(self::GITHUB_COMPARE_URL, $_githubConfig['owner'], $_githubConfig['repo'], $baseTag, $headTag);
 		$_url .= sprintf(self::GITHUB_OAUTH_PARAM, $_githubConfig['access_token']);
 		
+		return $this->_curlRequest($_url);
+	}
+	
+	/**
+	 * Perform the cURL request
+	 * 
+	 * @param string $url      The URL to send to
+	 * @param mixed  $dataBody The data to post to the URL (Arrays will be json_encoded)
+	 * @param array  $headers  An array of additional headers to send
+	 * @param array  $options  Additional curl options
+	 * 
+	 * @return mixed
+	 */
+	protected function _curlRequest($url, $dataBody = null, $headers = null, $options = null)
+	{
 		//start curl
 		$_ch = curl_init();
 		
 		//set the url and that we want to get the response 
-		curl_setopt($_ch, CURLOPT_URL, $_url);
+		curl_setopt($_ch, CURLOPT_URL, $url);
 		curl_setopt($_ch, CURLOPT_RETURNTRANSFER, true);
 		
 		//We need to set a user agent to make GitHub happy
@@ -244,7 +269,29 @@ class AkamaiCacheClear
 		//Githubs SSL certificate causes issues.
 		curl_setopt($_ch, CURLOPT_SSL_VERIFYPEER, false);
 		
-		//curl_setopt($_ch, CURLOPT_VERBOSE, true);
+		//set a post body if required
+		if (!is_null($dataBody)) {
+			if (is_array($dataBody)) {
+				$dataBody = json_encode($dataBody);
+			}
+			curl_setopt($_ch, CURLOPT_POSTFIELDS, $dataBody);
+		}
+		
+		//set the headers
+		if (!is_null($headers)) {
+			curl_setopt($_ch, CURLOPT_HTTPHEADER, $headers);
+		}
+		
+		if (!is_null($options)) {
+			foreach ($options as $_option => $_value) {
+				curl_setopt($_ch, $_option, $_value);
+			}
+		}
+		
+		//set verbose mode for debug
+		if ($this->_debug) {
+			curl_setopt($_ch, CURLOPT_VERBOSE, true);
+		}
 		
 		//get the data
 		return curl_exec($_ch);
@@ -261,7 +308,7 @@ $_options = getopt('', $_options);
 if(!array_key_exists('old', $_options) || !array_key_exists('new', $_options)){
 	echo "Usage: php ".$argv[0]." --old=<old release tag> --new=<new release tag>\n";
 } else {
-	$_utility = new AkamaiCacheClear('akamai.ini');
+	$_utility = new AkamaiCacheClear('akamai.ini', true);
 	$_timer = $_utility->run($_options['old'], $_options['new']);
 	
 	//output for the user

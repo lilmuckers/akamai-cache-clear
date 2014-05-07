@@ -23,7 +23,6 @@ username =
 password = 
 options[action] = remove
 options[type] = arl
-options[email-notification] = 
 paths[images] = http://a9.g.akamai.net/7/2/3/4/www.example.com/images/
 ```
 
