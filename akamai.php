@@ -308,7 +308,7 @@ $_options = getopt('', $_options);
 if(!array_key_exists('old', $_options) || !array_key_exists('new', $_options)){
 	echo "Usage: php ".$argv[0]." --old=<old release tag> --new=<new release tag>\n";
 } else {
-	$_utility = new AkamaiCacheClear('akamai.ini', true);
+	$_utility = new AkamaiCacheClear('akamai.ini');
 	$_timer = $_utility->run($_options['old'], $_options['new']);
 	
 	//output for the user
